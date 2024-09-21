@@ -66,6 +66,7 @@ struct NixRepl
 
     const static int envSize = 32768;
     std::shared_ptr<StaticEnv> staticEnv;
+    Value lastLoaded;
     Env * env;
     int displ;
     StringSet varNames;
@@ -90,6 +91,7 @@ struct NixRepl
     void loadFile(const Path & path);
     void loadFlake(const std::string & flakeRef);
     void loadFiles();
+    void showLastLoaded();
     void reloadFiles();
     void addAttrsToScope(Value & attrs);
     void addVarToScope(const Symbol name, Value & v);
@@ -464,6 +466,10 @@ ProcessLineResult NixRepl::processLine(std::string line)
         loadFlake(arg);
     }
 
+    else if (command == ":ll" || command == ":last-loaded") {
+        showLastLoaded();
+    }
+
     else if (command == ":r" || command == ":reload") {
         state->resetFileCache();
         reloadFiles();
@@ -751,6 +757,16 @@ void NixRepl::initEnv()
         varNames.emplace(state->symbols[i.first]);
 }
 
+void NixRepl::showLastLoaded()
+{
+    RunPager pager;
+
+    for (auto & i : *lastLoaded.attrs()) {
+        std::string_view name = state->symbols[i.name];
+        logger->cout(name);
+    }
+}
+
 
 void NixRepl::reloadFiles()
 {
@@ -792,6 +808,8 @@ void NixRepl::addAttrsToScope(Value & attrs)
     staticEnv->deduplicate();
     notice("Added %1% variables.", attrs.attrs()->size());
 
+    lastLoaded = attrs;
+
     const int max_print = 10;
     int counter = 0;
     std::string loaded;
@@ -809,7 +827,7 @@ void NixRepl::addAttrsToScope(Value & attrs)
     notice("- %1%", loaded);
 
     if (attrs.attrs()->size() > max_print)
-        notice("... and %1% more", attrs.attrs()->size() - max_print);
+        notice("... and %1% more; view with :ll", attrs.attrs()->size() - max_print);
 }
 
 
